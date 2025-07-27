@@ -18,7 +18,10 @@ export const useSounds = () => {
     }
     // Attempt to resume the context if it's suspended. This is crucial for browser autoplay policies.
     if (audioContextRef.current.state === 'suspended') {
-      audioContextRef.current.resume().catch(e => console.error("Error resuming AudioContext:", e));
+      console.log("Attempting to resume AudioContext...");
+      audioContextRef.current.resume().then(() => {
+        console.log("AudioContext resumed successfully.");
+      }).catch(e => console.error("Error resuming AudioContext:", e));
     }
     return audioContextRef.current;
   }, []);
@@ -27,22 +30,29 @@ export const useSounds = () => {
     const context = getAudioContext();
     if (!context) return;
 
+    console.log(`Loading sound: ${url} as ${name}`);
     try {
       const response = await fetch(url);
       const arrayBuffer = await response.arrayBuffer();
       const audioBuffer = await context.decodeAudioData(arrayBuffer);
       audioBuffersRef.current.set(name, audioBuffer);
+      console.log(`Sound loaded: ${name}`);
     } catch (e) {
       console.error(`Error loading sound ${url}:`, e);
     }
   }, [getAudioContext]);
 
   const playSound = useCallback((type: SoundType) => {
+    console.log(`playSound called for type: ${type}`);
     const context = getAudioContext();
-    if (!context) return;
+    if (!context) {
+      console.warn("No AudioContext available.");
+      return;
+    }
 
     // Load sounds only once, after the AudioContext is active due to user gesture
     if (!soundsLoadedRef.current) {
+      console.log("First playSound call, loading MP3s...");
       loadSound('/sonido/bola_verde.mp3', 'eat_mp3');
       loadSound('/sonido/game_over.mp3', 'gameover_mp3');
       soundsLoadedRef.current = true;
@@ -51,6 +61,7 @@ export const useSounds = () => {
     if (type === 'eat_mp3' || type === 'gameover_mp3') {
       const buffer = audioBuffersRef.current.get(type);
       if (buffer) {
+        console.log(`Playing MP3: ${type}`);
         const source = context.createBufferSource(); // Create a new source each time
         source.buffer = buffer;
         source.connect(context.destination);
