@@ -75,9 +75,9 @@ const generateParticle = (snakeBody: Coordinates[], existingParticles: Particle[
   let type: ParticleType;
   let timer: number | undefined;
 
-  if (rand < 0.80) { // food (80%)
+  if (rand < 0.60) { // food (60%)
     type = 'food';
-  } else if (rand < 0.85) { // danger (5%)
+  } else if (rand < 0.85) { // danger (25%)
     type = 'danger';
     timer = DANGER_DURATION_MS;
   } else if (rand < 0.95) { // bonus (10%)
@@ -105,7 +105,7 @@ const getInitialState = (): AppState => {
     gameState: GameState.MainMenu,
     snake: INITIAL_SNAKE,
     direction: Direction.Right,
-    particles: Array.from({ length: 5 }, (_, i) => generateParticle(INITIAL_SNAKE, [])),
+    particles: Array.from({ length: 10 }, (_, i) => generateParticle(INITIAL_SNAKE, [])),
     speed: null,
     preSlowdownSpeed: null,
     score: 0,
