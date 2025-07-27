@@ -42,12 +42,23 @@ export const useSounds = () => {
     }
   }, [getAudioContext]);
 
-  const playSound = useCallback((type: SoundType) => {
+  const playSound = useCallback(async (type: SoundType) => {
     console.log(`playSound called for type: ${type}`);
     const context = getAudioContext();
     if (!context) {
       console.warn("No AudioContext available.");
       return;
+    }
+
+    // Ensure context is running before proceeding
+    if (context.state === 'suspended') {
+      try {
+        await context.resume(); // Await the resume
+        console.log("AudioContext resumed successfully within playSound.");
+      } catch (e) {
+        console.error("Error resuming AudioContext in playSound:", e);
+        return; // Don't proceed if resume fails
+      }
     }
 
     // Load sounds only once, after the AudioContext is active due to user gesture
