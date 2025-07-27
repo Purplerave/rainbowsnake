@@ -32,8 +32,8 @@ export const useSounds = () => {
   }, []);
 
   useEffect(() => {
-    loadSound('/sonido/bola verde.mp3', 'eat_mp3');
-    loadSound('/sonido/end.mp3', 'gameover_mp3');
+    loadSound('/sonido/bola_verde.mp3', 'eat_mp3');
+    loadSound('/sonido/game_over.mp3', 'gameover_mp3');
   }, [loadSound]);
 
   const playSound = useCallback((type: SoundType) => {
