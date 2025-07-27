@@ -1,9 +1,10 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 
-type SoundType = 'eat' | 'bonus' | 'gameover' | 'click' | 'slowdown';
+type SoundType = 'eat' | 'bonus' | 'gameover' | 'click' | 'slowdown' | 'eat_mp3' | 'gameover_mp3';
 
 export const useSounds = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
+  const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
 
   const getAudioContext = () => {
     if (!audioContextRef.current) {
@@ -16,9 +17,43 @@ export const useSounds = () => {
     return audioContextRef.current;
   };
 
+  const loadSound = useCallback(async (url: string, name: string) => {
+    const context = getAudioContext();
+    if (!context) return;
+
+    try {
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await context.decodeAudioData(arrayBuffer);
+      audioBuffersRef.current.set(name, audioBuffer);
+    } catch (e) {
+      console.error(`Error loading sound ${url}:`, e);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSound('/sonido/bola verde.mp3', 'eat_mp3');
+    loadSound('/sonido/end.mp3', 'gameover_mp3');
+  }, [loadSound]);
+
   const playSound = useCallback((type: SoundType) => {
     const context = getAudioContext();
     if (!context) return;
+
+    if (type === 'eat_mp3' || type === 'gameover_mp3') {
+      const buffer = audioBuffersRef.current.get(type);
+      if (buffer) {
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+        source.connect(context.destination);
+        source.start(0);
+      } else {
+        console.warn(`Audio buffer for ${type} not loaded yet.`);
+        if (type === 'eat_mp3') playSound('eat');
+        if (type === 'gameover_mp3') playSound('gameover');
+      }
+      return;
+    }
 
     const oscillator = context.createOscillator();
     const gainNode = context.createGain();
@@ -62,7 +97,7 @@ export const useSounds = () => {
 
     oscillator.start(context.currentTime);
     oscillator.stop(context.currentTime + 0.3);
-  }, []);
+  }, [loadSound]);
 
   return { playSound };
 };

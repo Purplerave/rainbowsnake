@@ -421,7 +421,7 @@ export default function App() {
   
   useEffect(() => {
       if (state.gameState === GameState.GameOver) {
-          playSound('gameover');
+          playSound('gameover_mp3');
           setShaking(true);
           const timer = setTimeout(() => setShaking(false), 500);
           return () => clearTimeout(timer);
@@ -438,7 +438,7 @@ export default function App() {
   const gameTick = useCallback(() => {
     if (state.particles.findIndex(p => p.position.x === state.snake[0].x && p.position.y === state.snake[0].y) > -1) {
         const particle = state.particles.find(p => p.position.x === state.snake[0].x && p.position.y === state.snake[0].y);
-        if (particle?.type === 'food') playSound('eat');
+        if (particle?.type === 'food') playSound('eat_mp3');
         if (particle?.type === 'bonus') playSound('bonus');
         if (particle?.type === 'slowdown') playSound('slowdown');
     }
