@@ -36,7 +36,8 @@ type GameAction =
   | { type: 'DECREMENT_SLOWDOWN_TIMER' }
   | { type: 'SAVE_HIGH_SCORE', payload: string }
   | { type: 'ADD_EFFECT', payload: Omit<VisualEffect, 'id'> }
-  | { type: 'REMOVE_EFFECT', payload: number };
+  | { type: 'REMOVE_EFFECT', payload: number }
+  | { type: 'DECREMENT_PARTICLE_TIMERS' };
 
 
 interface AppState {
@@ -71,17 +72,22 @@ const generateParticle = (snakeBody: Coordinates[], existingParticles: Particle[
   
   const rand = Math.random();
   let type: ParticleType;
-  if (rand < 0.54) { // food (54%)
+  let timer: number | undefined;
+
+  if (rand < 0.80) { // food (80%)
     type = 'food';
-  } else if (rand < 0.89) { // danger (35%)
+  } else if (rand < 0.85) { // danger (5%)
     type = 'danger';
-  } else if (rand < 0.99) { // bonus (10%)
+    timer = DANGER_DURATION_MS;
+  } else if (rand < 0.95) { // bonus (10%)
     type = 'bonus';
-  } else { // slowdown (1%)
+    timer = BONUS_DURATION_MS;
+  } else { // slowdown (5%)
     type = 'slowdown';
+    timer = SLOWDOWN_DURATION_MS;
   }
 
-  return { position, type, id: Date.now() + Math.random() };
+  return { position, type, id: Date.now() + Math.random(), timer };
 };
 
 const getInitialState = (): AppState => {
@@ -286,6 +292,15 @@ function gameReducer(state: AppState, action: GameAction): AppState {
             ...state,
             visualEffects: state.visualEffects.filter(e => e.id !== action.payload)
         };
+    case 'DECREMENT_PARTICLE_TIMERS': {
+        const updatedParticles = state.particles.map(p => {
+            if (p.timer !== undefined) {
+                return { ...p, timer: p.timer - 1000 }; // Decrement by 1 second
+            }
+            return p;
+        }).filter(p => p.timer === undefined || p.timer > 0);
+        return { ...state, particles: updatedParticles };
+    }
     default:
       return state;
   }
@@ -354,6 +369,13 @@ export default function App() {
           return () => clearTimeout(timer);
       }
   }, [state.gameState, playSound]);
+
+  useEffect(() => {
+    const particleTimerInterval = setInterval(() => {
+      dispatch({ type: 'DECREMENT_PARTICLE_TIMERS' });
+    }, 1000); // Decrement every second
+    return () => clearInterval(particleTimerInterval);
+  }, []);
 
   const gameTick = useCallback(() => {
     if (state.particles.findIndex(p => p.position.x === state.snake[0].x && p.position.y === state.snake[0].y) > -1) {

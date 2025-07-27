@@ -17,6 +17,7 @@ export const BONUS_DURATION_MS = 10000; // 10 seconds
 
 export const SLOWDOWN_FACTOR = 1.5; // speed will be multiplied by this
 export const SLOWDOWN_DURATION_MS = 8000; // 8 seconds
+export const DANGER_DURATION_MS = 5000; // 5 seconds
 
 export const HIGH_SCORE_COUNT = 10;
 

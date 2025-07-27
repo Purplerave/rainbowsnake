@@ -25,6 +25,7 @@ export interface Particle {
   id: number;
   position: Coordinates;
   type: ParticleType;
+  timer?: number; // Optional: time in milliseconds until particle disappears
 }
 
 export interface HighScore {
