@@ -5,21 +5,23 @@ type SoundType = 'eat' | 'bonus' | 'gameover' | 'click' | 'slowdown' | 'eat_mp3'
 export const useSounds = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
+  const soundsLoadedRef = useRef(false);
 
-  const getAudioContext = () => {
+  const getAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
         try {
             audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
         } catch (e) {
             console.error("Web Audio API is not supported in this browser");
+            return null;
         }
     }
     // Attempt to resume the context if it's suspended. This is crucial for browser autoplay policies.
-    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+    if (audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume().catch(e => console.error("Error resuming AudioContext:", e));
     }
     return audioContextRef.current;
-  };
+  }, []);
 
   const loadSound = useCallback(async (url: string, name: string) => {
     const context = getAudioContext();
@@ -33,16 +35,18 @@ export const useSounds = () => {
     } catch (e) {
       console.error(`Error loading sound ${url}:`, e);
     }
-  }, []);
-
-  useEffect(() => {
-    loadSound('/sonido/bola_verde.mp3', 'eat_mp3');
-    loadSound('/sonido/game_over.mp3', 'gameover_mp3');
-  }, [loadSound]);
+  }, [getAudioContext]);
 
   const playSound = useCallback((type: SoundType) => {
     const context = getAudioContext();
     if (!context) return;
+
+    // Load sounds only once, after the AudioContext is active due to user gesture
+    if (!soundsLoadedRef.current) {
+      loadSound('/public/sonido/bola_verde.mp3', 'eat_mp3');
+      loadSound('/public/sonido/game_over.mp3', 'gameover_mp3');
+      soundsLoadedRef.current = true;
+    }
 
     if (type === 'eat_mp3' || type === 'gameover_mp3') {
       const buffer = audioBuffersRef.current.get(type);
@@ -52,7 +56,8 @@ export const useSounds = () => {
         source.connect(context.destination);
         source.start(0);
       } else {
-        console.warn(`Audio buffer for ${type} not loaded yet.`);
+        console.warn(`Audio buffer for ${type} not loaded yet. Playing fallback.`);
+        // Fallback to programmatic sound if MP3 not loaded yet
         if (type === 'eat_mp3') playSound('eat');
         if (type === 'gameover_mp3') playSound('gameover');
       }
@@ -101,7 +106,7 @@ export const useSounds = () => {
 
     oscillator.start(context.currentTime);
     oscillator.stop(context.currentTime + 0.3);
-  }, [loadSound]);
+  }, [getAudioContext, loadSound]);
 
   return { playSound };
 }; // End of useSounds hook
