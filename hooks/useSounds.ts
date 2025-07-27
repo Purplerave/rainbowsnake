@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback } from 'react';
 
 type SoundType = 'eat' | 'bonus' | 'gameover' | 'click' | 'slowdown' | 'eat_mp3' | 'gameover_mp3';
 
@@ -7,28 +7,44 @@ export const useSounds = () => {
   const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
   const soundsLoadedRef = useRef(false);
 
-  const getAudioContext = useCallback(() => {
-    if (!audioContextRef.current) {
-        try {
-            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        } catch (e) {
-            console.error("Web Audio API is not supported in this browser");
-            return null;
-        }
+  const initAudio = useCallback(async () => {
+    if (audioContextRef.current) return; // Already initialized
+
+    try {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      console.log("AudioContext created.");
+    } catch (e) {
+      console.error("Web Audio API is not supported in this browser", e);
+      return;
     }
-    // Attempt to resume the context if it's suspended. This is crucial for browser autoplay policies.
+
+    // Attempt to resume the context if it's suspended.
     if (audioContextRef.current.state === 'suspended') {
-      console.log("Attempting to resume AudioContext...");
-      audioContextRef.current.resume().then(() => {
+      try {
+        await audioContextRef.current.resume();
         console.log("AudioContext resumed successfully.");
-      }).catch(e => console.error("Error resuming AudioContext:", e));
+      } catch (e) {
+        console.error("Error resuming AudioContext:", e);
+        return;
+      }
     }
-    return audioContextRef.current;
+
+    // Load sounds only once, after the AudioContext is active due to user gesture
+    if (!soundsLoadedRef.current) {
+      console.log("Loading MP3s...");
+      await loadSound('/sonido/bola_verde.mp3', 'eat_mp3');
+      await loadSound('/sonido/game_over.mp3', 'gameover_mp3');
+      soundsLoadedRef.current = true;
+      console.log("MP3s loaded.");
+    }
   }, []);
 
   const loadSound = useCallback(async (url: string, name: string) => {
-    const context = getAudioContext();
-    if (!context) return;
+    const context = audioContextRef.current; // Use the already created context
+    if (!context) {
+      console.warn("AudioContext not available for loading sound.");
+      return;
+    }
 
     console.log(`Loading sound: ${url} as ${name}`);
     try {
@@ -40,33 +56,14 @@ export const useSounds = () => {
     } catch (e) {
       console.error(`Error loading sound ${url}:`, e);
     }
-  }, [getAudioContext]);
+  }, []); // No dependency on getAudioContext anymore
 
-  const playSound = useCallback(async (type: SoundType) => {
+  const playSound = useCallback((type: SoundType) => {
     console.log(`playSound called for type: ${type}`);
-    const context = getAudioContext();
-    if (!context) {
-      console.warn("No AudioContext available.");
+    const context = audioContextRef.current;
+    if (!context || context.state !== 'running') {
+      console.warn("AudioContext not running. Cannot play sound.");
       return;
-    }
-
-    // Ensure context is running before proceeding
-    if (context.state === 'suspended') {
-      try {
-        await context.resume(); // Await the resume
-        console.log("AudioContext resumed successfully within playSound.");
-      } catch (e) {
-        console.error("Error resuming AudioContext in playSound:", e);
-        return; // Don't proceed if resume fails
-      }
-    }
-
-    // Load sounds only once, after the AudioContext is active due to user gesture
-    if (!soundsLoadedRef.current) {
-      console.log("First playSound call, loading MP3s...");
-      loadSound('/sonido/bola_verde.mp3', 'eat_mp3');
-      loadSound('/sonido/game_over.mp3', 'gameover_mp3');
-      soundsLoadedRef.current = true;
     }
 
     if (type === 'eat_mp3' || type === 'gameover_mp3') {
@@ -128,7 +125,7 @@ export const useSounds = () => {
 
     oscillator.start(context.currentTime);
     oscillator.stop(context.currentTime + 0.3);
-  }, [getAudioContext, loadSound]);
+  }, []); // No dependency on getAudioContext anymore
 
-  return { playSound };
+  return { playSound, initAudio };
 }; // End of useSounds hook

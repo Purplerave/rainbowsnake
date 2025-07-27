@@ -8,7 +8,7 @@ import { Scoreboard } from './components/Scoreboard';
 import { PauseScreen } from './components/PauseScreen';
 import { VisualEffects } from './components/VisualEffects';
 import { useGameLoop } from './hooks/useGameLoop';
-import { useSounds } from './hooks/useSounds';
+import { useSounds } from './hooks/useSounds'; // Import useSounds
 import { GameState, Direction, Coordinates, Particle, HighScore, VisualEffect, ParticleType } from './types';
 import { 
   GRID_SIZE, 
@@ -367,7 +367,7 @@ function gameReducer(state: AppState, action: GameAction): AppState {
 
 export default function App() {
   const [state, dispatch] = useReducer(gameReducer, getInitialState());
-  const { playSound } = useSounds();
+  const { playSound, initAudio } = useSounds(); // Destructure initAudio
   const [isShaking, setShaking] = useState(false);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -387,12 +387,14 @@ export default function App() {
     }
     if (newDirection !== null) {
       e.preventDefault();
+      // Call initAudio on first key press interaction
+      initAudio(); 
       if (state.gameState === GameState.GetReady) {
         dispatch({ type: 'START_MOVEMENT' });
       }
       dispatch({ type: 'CHANGE_DIRECTION', payload: newDirection });
     }
-  }, [state.gameState]);
+  }, [state.gameState, initAudio]); // Add initAudio to dependencies
 
   useEffect(() => {
     if ([GameState.Playing, GameState.GetReady, GameState.Paused].includes(state.gameState)) {
@@ -458,9 +460,9 @@ export default function App() {
       case GameState.MainMenu:
         return (
           <MainMenu 
-            onStart={() => dispatch({ type: 'START_GAME' })} 
+            onStart={() => { dispatch({ type: 'START_GAME' }); initAudio(); }} // Call initAudio on start
             highScores={state.highScores}
-            onSoundClick={() => playSound('click')}
+            onSoundClick={() => { playSound('click'); initAudio(); }} // Call initAudio on click
           />
         );
       case GameState.EnteringInitials:
@@ -468,7 +470,7 @@ export default function App() {
             <InitialEntryScreen 
                 score={state.score}
                 onSave={(initials) => dispatch({ type: 'SAVE_HIGH_SCORE', payload: initials })}
-                onSoundClick={() => playSound('click')}
+                onSoundClick={() => { playSound('click'); initAudio(); }} // Call initAudio on click
             />
         );
       default: // Covers GetReady, Playing, Paused, GameOver
@@ -491,7 +493,7 @@ export default function App() {
                   <PauseScreen 
                     onResume={() => dispatch({type: 'TOGGLE_PAUSE'})}
                     onMenu={() => dispatch({ type: 'RESET' })}
-                    onSoundClick={() => playSound('click')}
+                    onSoundClick={() => { playSound('click'); initAudio(); }} // Call initAudio on click
                   />
               )}
               {state.gameState === GameState.GameOver && (
@@ -499,7 +501,7 @@ export default function App() {
                   score={state.score} 
                   onRestart={() => dispatch({ type: 'START_GAME' })}
                   onMenu={() => dispatch({ type: 'RESET' })}
-                  onSoundClick={() => playSound('click')}
+                  onSoundClick={() => { playSound('click'); initAudio(); }} // Call initAudio on click
                 />
               )}
               <GameBoard 
