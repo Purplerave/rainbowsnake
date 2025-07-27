@@ -71,13 +71,13 @@ const generateParticle = (snakeBody: Coordinates[], existingParticles: Particle[
   
   const rand = Math.random();
   let type: ParticleType;
-  if (rand < 0.65) {
+  if (rand < 0.54) { // food (54%)
     type = 'food';
-  } else if (rand < 0.85) {
+  } else if (rand < 0.89) { // danger (35%)
     type = 'danger';
-  } else if (rand < 0.95) {
+  } else if (rand < 0.99) { // bonus (10%)
     type = 'bonus';
-  } else {
+  } else { // slowdown (1%)
     type = 'slowdown';
   }
 
