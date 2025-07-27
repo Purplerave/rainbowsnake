@@ -43,8 +43,8 @@ export const useSounds = () => {
 
     // Load sounds only once, after the AudioContext is active due to user gesture
     if (!soundsLoadedRef.current) {
-      loadSound('/public/sonido/bola_verde.mp3', 'eat_mp3');
-      loadSound('/public/sonido/game_over.mp3', 'gameover_mp3');
+      loadSound('/sonido/bola_verde.mp3', 'eat_mp3');
+      loadSound('/sonido/game_over.mp3', 'gameover_mp3');
       soundsLoadedRef.current = true;
     }
 
