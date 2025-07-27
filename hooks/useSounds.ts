@@ -43,7 +43,7 @@ export const useSounds = () => {
     if (type === 'eat_mp3' || type === 'gameover_mp3') {
       const buffer = audioBuffersRef.current.get(type);
       if (buffer) {
-        const source = context.createBufferSource();
+        const source = context.createBufferSource(); // Create a new source each time
         source.buffer = buffer;
         source.connect(context.destination);
         source.start(0);
