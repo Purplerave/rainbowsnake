@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Serpiente Multicolor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      @keyframes gradientAnimation {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+      body {
+        background: linear-gradient(270deg, #1e293b, #4c1d95, #1e3a8a, #047857);
+        background-size: 600% 600%;
+        animation: gradientAnimation 30s ease infinite;
+      }
+      .screen-shake {
+        animation: screenShake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+      }
+      @keyframes screenShake {
+        10%, 90% { transform: translate3d(-1px, 0, 0); }
+        20%, 80% { transform: translate3d(2px, 0, 0); }
+        30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+        40%, 60% { transform: translate3d(4px, 0, 0); }
+      }
+
+      .particle-burst {
+        animation: particle-burst-anim 0.5s ease-out forwards;
+      }
+      @keyframes particle-burst-anim {
+        from { transform: scale(0); opacity: 1; }
+        to { transform: scale(2); opacity: 0; }
+      }
+      
+      .score-text-anim {
+         animation: fade-up-out 0.8s ease-out forwards;
+      }
+      @keyframes fade-up-out {
+          from { transform: translateY(0) scale(1); opacity: 1; }
+          to { transform: translateY(-20px) scale(0.8); opacity: 0; }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

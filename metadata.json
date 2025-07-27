@@ -1,0 +1,5 @@
+{
+  "name": "Serpiente Multicolor",
+  "description": "Una versión moderna del clásico juego de la serpiente. Crece comiendo partículas, evita los peligros y consigue la puntuación más alta en un tablero vibrante de estilo 3D.",
+  "requestFramePermissions": []
+}
