@@ -14,6 +14,10 @@ export const useSounds = () => {
             console.error("Web Audio API is not supported in this browser");
         }
     }
+    // Attempt to resume the context if it's suspended. This is crucial for browser autoplay policies.
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume().catch(e => console.error("Error resuming AudioContext:", e));
+    }
     return audioContextRef.current;
   };
 
