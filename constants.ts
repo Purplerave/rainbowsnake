@@ -19,6 +19,10 @@ export const SLOWDOWN_FACTOR = 1.5; // speed will be multiplied by this
 export const SLOWDOWN_DURATION_MS = 8000; // 8 seconds
 export const DANGER_DURATION_MS = 5000; // 5 seconds
 
+export const TARGET_DANGER_COUNT = 3;
+export const TARGET_BONUS_COUNT = 1;
+export const TARGET_SLOWDOWN_COUNT = 1;
+
 export const HIGH_SCORE_COUNT = 10;
 
 export const SNAKE_COLORS = [

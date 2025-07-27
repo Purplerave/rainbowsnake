@@ -22,6 +22,9 @@ import {
   SLOWDOWN_DURATION_MS,
   DANGER_DURATION_MS,
   HIGH_SCORE_COUNT,
+  TARGET_DANGER_COUNT,
+  TARGET_BONUS_COUNT,
+  TARGET_SLOWDOWN_COUNT,
   PARTICLE_STYLES
 } from './constants';
 
@@ -56,7 +59,7 @@ interface AppState {
   visualEffects: VisualEffect[];
 }
 
-const generateParticle = (snakeBody: Coordinates[], existingParticles: Particle[]): Particle => {
+const generateParticle = (snakeBody: Coordinates[], existingParticles: Particle[], typeToGenerate?: ParticleType): Particle => {
   let position: Coordinates;
   const isOccupied = (pos: Coordinates) => {
     return [...snakeBody, ...existingParticles.map(p => p.position)].some(
@@ -71,21 +74,36 @@ const generateParticle = (snakeBody: Coordinates[], existingParticles: Particle[
     };
   } while (isOccupied(position));
   
-  const rand = Math.random();
   let type: ParticleType;
   let timer: number | undefined;
 
-  if (rand < 0.60) { // food (60%)
-    type = 'food';
-  } else if (rand < 0.85) { // danger (25%)
-    type = 'danger';
-    timer = DANGER_DURATION_MS;
-  } else if (rand < 0.95) { // bonus (10%)
-    type = 'bonus';
-    timer = BONUS_DURATION_MS;
-  } else { // slowdown (5%)
-    type = 'slowdown';
-    timer = SLOWDOWN_DURATION_MS;
+  if (typeToGenerate) {
+    type = typeToGenerate;
+  } else { // Fallback to random generation if type is not specified (shouldn't happen often now)
+    const rand = Math.random();
+    if (rand < 0.60) { // food (60%)
+      type = 'food';
+    } else if (rand < 0.85) { // danger (25%)
+      type = 'danger';
+    } else if (rand < 0.95) { // bonus (10%)
+      type = 'bonus';
+    } else { // slowdown (5%)
+      type = 'slowdown';
+    }
+  }
+
+  switch (type) {
+    case 'danger':
+      timer = DANGER_DURATION_MS;
+      break;
+    case 'bonus':
+      timer = BONUS_DURATION_MS;
+      break;
+    case 'slowdown':
+      timer = SLOWDOWN_DURATION_MS;
+      break;
+    default:
+      timer = undefined;
   }
 
   return { position, type, id: Date.now() + Math.random(), timer };
@@ -105,7 +123,12 @@ const getInitialState = (): AppState => {
     gameState: GameState.MainMenu,
     snake: INITIAL_SNAKE,
     direction: Direction.Right,
-    particles: Array.from({ length: 10 }, (_, i) => generateParticle(INITIAL_SNAKE, [])),
+    particles: [
+      generateParticle(INITIAL_SNAKE, [], 'food'), // Always one food particle
+      ...Array.from({ length: TARGET_DANGER_COUNT }, () => generateParticle(INITIAL_SNAKE, [], 'danger')),
+      ...Array.from({ length: TARGET_BONUS_COUNT }, () => generateParticle(INITIAL_SNAKE, [], 'bonus')),
+      ...Array.from({ length: TARGET_SLOWDOWN_COUNT }, () => generateParticle(INITIAL_SNAKE, [], 'slowdown')),
+    ],
     speed: null,
     preSlowdownSpeed: null,
     score: 0,
@@ -224,6 +247,8 @@ function gameReducer(state: AppState, action: GameAction): AppState {
                 newScore += pointsGained;
                 newSpeed = Math.max(50, (nextState.speed || INITIAL_SPEED) - SPEED_INCREMENT);
                 nextState = gameReducer(nextState, { type: 'ADD_EFFECT', payload: { type: 'score-text', text: `+${pointsGained}`, position: particle.position }});
+                // Generate a new food particle immediately
+                newParticles.push(generateParticle(newSnake, newParticles, 'food'));
                 break;
             case 'danger':
                 return gameReducer(nextState, { type: 'GAME_OVER' });
@@ -243,7 +268,22 @@ function gameReducer(state: AppState, action: GameAction): AppState {
         }
         
         newParticles.splice(particleIndex, 1);
-        newParticles.push(generateParticle(newSnake, newParticles));
+        
+        // After eating, check and replenish other particle types if needed
+        const currentDangerCount = newParticles.filter(p => p.type === 'danger').length;
+        for (let i = currentDangerCount; i < TARGET_DANGER_COUNT; i++) {
+            newParticles.push(generateParticle(newSnake, newParticles, 'danger'));
+        }
+
+        const currentBonusCount = newParticles.filter(p => p.type === 'bonus').length;
+        for (let i = currentBonusCount; i < TARGET_BONUS_COUNT; i++) {
+            newParticles.push(generateParticle(newSnake, newParticles, 'bonus'));
+        }
+
+        const currentSlowdownCount = newParticles.filter(p => p.type === 'slowdown').length;
+        for (let i = currentSlowdownCount; i < TARGET_SLOWDOWN_COUNT; i++) {
+            newParticles.push(generateParticle(newSnake, newParticles, 'slowdown'));
+        }
       }
 
       if (!ateParticle) {
@@ -294,12 +334,29 @@ function gameReducer(state: AppState, action: GameAction): AppState {
             visualEffects: state.visualEffects.filter(e => e.id !== action.payload)
         };
     case 'DECREMENT_PARTICLE_TIMERS': {
-        const updatedParticles = state.particles.map(p => {
+        let updatedParticles = state.particles.map(p => {
             if (p.timer !== undefined) {
                 return { ...p, timer: p.timer - 1000 }; // Decrement by 1 second
             }
             return p;
         }).filter(p => p.timer === undefined || p.timer > 0);
+
+        // Replenish timed particles if their count is below target
+        const currentDangerCount = updatedParticles.filter(p => p.type === 'danger').length;
+        for (let i = currentDangerCount; i < TARGET_DANGER_COUNT; i++) {
+            updatedParticles.push(generateParticle(state.snake, updatedParticles, 'danger'));
+        }
+
+        const currentBonusCount = updatedParticles.filter(p => p.type === 'bonus').length;
+        for (let i = currentBonusCount; i < TARGET_BONUS_COUNT; i++) {
+            updatedParticles.push(generateParticle(state.snake, updatedParticles, 'bonus'));
+        }
+
+        const currentSlowdownCount = updatedParticles.filter(p => p.type === 'slowdown').length;
+        for (let i = currentSlowdownCount; i < TARGET_SLOWDOWN_COUNT; i++) {
+            updatedParticles.push(generateParticle(state.snake, updatedParticles, 'slowdown'));
+        }
+
         return { ...state, particles: updatedParticles };
     }
     default:
