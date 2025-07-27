@@ -100,4 +100,4 @@ export const useSounds = () => {
   }, [loadSound]);
 
   return { playSound };
-};
+}; // End of useSounds hook
