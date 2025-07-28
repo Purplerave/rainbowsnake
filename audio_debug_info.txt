@@ -1,0 +1,450 @@
+# Información de Depuración de Audio - Serpiente Multicolor
+
+## 1. Descripción del Problema Actual
+
+El problema principal es que los sonidos del juego no se reproducen de forma consistente.
+- El sonido de "game over" (bola roja) a veces suena un par de veces, pero luego deja de sonar.
+- Los sonidos de las bolas verdes (comida) y amarillas (bonus) nunca se reproducen.
+- La consola del navegador muestra advertencias de "AudioContext not running. Cannot play sound." a pesar de los intentos de reanudarlo.
+- El juego funciona correctamente en cuanto a lógica y visuales, el problema es exclusivamente de audio.
+
+## 2. Mensajes de Consola Recientes (Entorno Local)
+
+```
+La hoja de estilos http://localhost:5174/index.css no se ha cargado porque su tipo MIME, "text/html", no es "text/css". localhost:5174
+cdn.tailwindcss.com should not be used in production. To use Tailwind CSS in production, install it as a PostCSS plugin or use the Tailwind CLI: https://tailwindcss.com/docs/installation cdn.tailwindcss.com:64:1711
+La hoja de estilos http://localhost:5174/index.css no se ha cargado porque su tipo MIME, "text/html", no es "text/css". localhost:5174
+[vite] connecting... client:789:9
+[vite] connected. client:912:15
+Download the React DevTools for a better development experience: https://react.dev/link/react-devtools react-dom-client.development.js:24868:17
+playSound called for type: click useSounds.ts:59:13
+AudioContext not running. Cannot play sound. useSounds.ts:62:15
+Se esperaba un selector.  Juego de reglas ignoradas debido a un mal selector. index.css:1:1
+Se esperaba un selector.  Juego de reglas ignoradas debido a un mal selector. index.css:12:1
+Juego de reglas ignoradas debido a un mal selector. index.css:64:8
+Error al interpretar el valor para '-webkit-text-size-adjust'.  Declaración rechazada.
+```
+
+## 3. Contenido de `hooks/useSounds.ts`
+
+```typescript
+import { useRef, useCallback } from 'react';
+
+type SoundType = 'eat' | 'bonus' | 'gameover' | 'click' | 'slowdown' | 'eat_mp3' | 'gameover_mp3';
+
+export const useSounds = () => {
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioBuffersRef = useRef<Map<string, AudioBuffer>>(new Map());
+  const soundsLoadedRef = useRef(false);
+
+  const initAudio = useCallback(async () => {
+    if (audioContextRef.current) return; // Already initialized
+
+    try {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      console.log("AudioContext created.");
+    } catch (e) {
+      console.error("Web Audio API is not supported in this browser", e);
+      return;
+    }
+
+    // Attempt to resume the context if it's suspended.
+    if (audioContextRef.current.state === 'suspended') {
+      try {
+        await audioContextRef.current.resume();
+        console.log("AudioContext resumed successfully.");
+      } catch (e) {
+        console.error("Error resuming AudioContext:", e);
+        return;
+      }
+    }
+
+    // Load sounds only once, after the AudioContext is active due to user gesture
+    if (!soundsLoadedRef.current) {
+      console.log("Loading MP3s...");
+      await loadSound('/sonido/bola_verde.mp3', 'eat_mp3');
+      await loadSound('/sonido/game_over.mp3', 'gameover_mp3');
+      soundsLoadedRef.current = true;
+      console.log("MP3s loaded.");
+    }
+  }, []);
+
+  const loadSound = useCallback(async (url: string, name: string) => {
+    const context = audioContextRef.current; // Use the already created context
+    if (!context) {
+      console.warn("AudioContext not available for loading sound.");
+      return;
+    }
+
+    console.log(`Loading sound: ${url} as ${name}`);
+    try {
+      const response = await fetch(url);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await context.decodeAudioData(arrayBuffer);
+      audioBuffersRef.current.set(name, audioBuffer);
+      console.log(`Sound loaded: ${name}`);
+    } catch (e) {
+      console.error(`Error loading sound ${url}:`, e);
+    }
+  }, []); // No dependency on getAudioContext anymore
+
+  const playSound = useCallback((type: SoundType) => {
+    console.log(`playSound called for type: ${type}`);
+    const context = audioContextRef.current;
+    if (!context || context.state !== 'running') {
+      console.warn("AudioContext not running. Cannot play sound.");
+      return;
+    }
+
+    if (type === 'eat_mp3' || type === 'gameover_mp3') {
+      const buffer = audioBuffersRef.current.get(type);
+      if (buffer) {
+        console.log(`Playing MP3: ${type}`);
+        const source = context.createBufferSource(); // Create a new source each time
+        source.buffer = buffer;
+        source.connect(context.destination);
+        source.start(0);
+      } else {
+        console.warn(`Audio buffer for ${type} not loaded yet. Playing fallback.`);
+        // Fallback to programmatic sound if MP3 not loaded yet
+        if (type === 'eat_mp3') playSound('eat');
+        if (type === 'gameover_mp3') playSound('gameover');
+      }
+      return;
+    }
+
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(context.destination);
+
+    gainNode.gain.setValueAtTime(0, context.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.3, context.currentTime + 0.01);
+    
+    switch (type) {
+      case 'eat':
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(440, context.currentTime);
+        oscillator.frequency.linearRampToValueAtTime(880, context.currentTime + 0.1);
+        gainNode.gain.linearRampToValueAtTime(0, context.currentTime + 0.1);
+        break;
+      case 'bonus':
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(523.25, context.currentTime); // C5
+        oscillator.frequency.linearRampToValueAtTime(1046.50, context.currentTime + 0.2); // C6
+        gainNode.gain.linearRampToValueAtTime(0, context.currentTime + 0.2);
+        break;
+      case 'slowdown':
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(440, context.currentTime);
+        oscillator.frequency.linearRampToValueAtTime(220, context.currentTime + 0.2);
+        gainNode.gain.linearRampToValueAtTime(0, context.currentTime + 0.3);
+        break;
+      case 'gameover':
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(164.81, context.currentTime); // E3
+        oscillator.frequency.linearRampToValueAtTime(82.41, context.currentTime + 0.25); // E2
+        gainNode.gain.linearRampToValueAtTime(0, context.currentTime + 0.25);
+        break;
+      case 'click':
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(600, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.1);
+        break;
+    }
+
+    oscillator.start(context.currentTime);
+    oscillator.stop(context.currentTime + 0.3);
+  }, []); // No dependency on getAudioContext anymore
+
+  return { playSound, initAudio };
+}; // End of useSounds hook
+```
+
+## 4. Contenido Relevante de `App.tsx`
+
+```typescript
+import React, { useState, useEffect, useCallback, useReducer } from 'react';
+import { GameBoard } from './components/GameBoard';
+import { MainMenu } from './components/MainMenu';
+import { GameOverScreen } from './components/GameOverScreen';
+import { InitialEntryScreen } from './components/InitialEntryScreen';
+import { Scoreboard } from './components/Scoreboard';
+import { PauseScreen } from './components/PauseScreen';
+import { VisualEffects } from './components/VisualEffects';
+import { useGameLoop } from './hooks/useGameLoop';
+import { useSounds } from './hooks/useSounds'; // Import useSounds
+import { 
+  GRID_SIZE, 
+  INITIAL_SNAKE, 
+  INITIAL_SPEED, 
+  SPEED_INCREMENT, 
+  POINTS_PER_FOOD, 
+  BONUS_MULTIPLIER, 
+  BONUS_DURATION_MS,
+  SLOWDOWN_FACTOR,
+  SLOWDOWN_DURATION_MS,
+  DANGER_DURATION_MS,
+  HIGH_SCORE_COUNT,
+  TARGET_DANGER_COUNT,
+  TARGET_BONUS_COUNT,
+  TARGET_SLOWDOWN_COUNT,
+  PARTICLE_STYLES
+} from './constants';
+
+// ... (resto de GameAction, AppState, generateParticle, getInitialState, gameReducer)
+
+export default function App() {
+  const [state, dispatch] = useReducer(gameReducer, getInitialState());
+  const { playSound, initAudio } = useSounds(); // Destructure initAudio
+  const [isShaking, setShaking] = useState(false);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    let newDirection: Direction | null = null;
+    
+    if (e.key === 'p' || e.key === 'Escape') {
+      e.preventDefault();
+      dispatch({ type: 'TOGGLE_PAUSE' });
+      return;
+    }
+    
+    switch (e.key) {
+      case 'ArrowUp': case 'w': newDirection = Direction.Up; break;
+      case 'ArrowDown': case 's': newDirection = Direction.Down; break;
+      case 'ArrowLeft': case 'a': newDirection = Direction.Left; break;
+      case 'ArrowRight': case 'd': newDirection = Direction.Right; break;
+    }
+    if (newDirection !== null) {
+      e.preventDefault();
+      // Call initAudio on first key press interaction
+      initAudio(); 
+      if (state.gameState === GameState.GetReady) {
+        dispatch({ type: 'START_MOVEMENT' });
+      }
+      dispatch({ type: 'CHANGE_DIRECTION', payload: newDirection });
+    }
+  }, [state.gameState, initAudio]); // Add initAudio to dependencies
+
+  // ... (otros useEffects)
+
+  useEffect(() => {
+      if (state.gameState === GameState.GameOver) {
+          playSound('gameover_mp3');
+          setShaking(true);
+          const timer = setTimeout(() => setShaking(false), 500);
+          return () => clearTimeout(timer);
+      }
+  }, [state.gameState, playSound]);
+
+  // ... (resto de useEffects)
+
+  const gameTick = useCallback(() => {
+    if (state.particles.findIndex(p => p.position.x === state.snake[0].x && p.position.y === state.snake[0].y) > -1) {
+        const particle = state.particles.find(p => p.position.x === state.snake[0].x && p.position.y === state.snake[0].y);
+        if (particle?.type === 'food') playSound('eat_mp3');
+        if (particle?.type === 'bonus') playSound('bonus');
+        if (particle?.type === 'slowdown') playSound('slowdown');
+    }
+    dispatch({ type: 'TICK' });
+  }, [state.particles, state.snake, playSound]);
+
+  useGameLoop(gameTick, state.speed);
+
+  const highestScore = state.highScores.length > 0 ? state.highScores[0].score : 0;
+  
+  const handleRemoveEffect = (id: number) => {
+    dispatch({ type: 'REMOVE_EFFECT', payload: id });
+  };
+  
+  const renderContent = () => {
+    switch (state.gameState) {
+      case GameState.MainMenu:
+        return (
+          <MainMenu 
+            onStart={() => { dispatch({ type: 'START_GAME' }); initAudio(); }} // Call initAudio on start
+            highScores={state.highScores}
+            onSoundClick={() => { playSound('click'); initAudio(); }} // Call initAudio on click
+          />
+        );
+      case GameState.EnteringInitials:
+        return (
+            <InitialEntryScreen 
+                score={state.score}
+                onSave={(initials) => dispatch({ type: 'SAVE_HIGH_SCORE', payload: initials })}
+                onSoundClick={() => { playSound('click'); initAudio(); }} // Call initAudio on click
+            />
+        );
+      default: // Covers GetReady, Playing, Paused, GameOver
+        return (
+          <>
+            <Scoreboard 
+              score={state.score} 
+              highScore={highestScore} 
+              multiplier={state.scoreMultiplier}
+              multiplierTimer={state.multiplierTimer}
+              slowdownTimer={state.slowdownTimer}
+            />
+            <div className="relative w-[360px] h-[360px] sm:w-[450px] sm:h-[450px] md:w-[540px] md:h-[540px]">
+              {state.gameState === GameState.GetReady && (
+                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm rounded-lg flex flex-col items-center justify-center p-8 text-center z-10">
+                  <h2 className="text-3xl font-bold text-white animate-pulse">Pulsa una tecla de dirección para empezar</h2>
+                </div>
+              )}
+              {state.gameState === GameState.Paused && (
+                  <PauseScreen 
+                    onResume={() => dispatch({type: 'TOGGLE_PAUSE'})}
+                    onMenu={() => dispatch({ type: 'RESET' })}
+                    onSoundClick={() => { playSound('click'); initAudio(); }} // Call initAudio on click
+                  />
+              )}
+              {state.gameState === GameState.GameOver && (
+                <GameOverScreen 
+                  score={state.score} 
+                  onRestart={() => dispatch({ type: 'START_GAME' })}
+                  onMenu={() => dispatch({ type: 'RESET' })}
+                  onSoundClick={() => { playSound('click'); initAudio(); }} // Call initAudio on click
+                />
+              )}
+              <GameBoard 
+                snake={state.snake} 
+                particles={state.particles}
+                isBonusActive={state.scoreMultiplier > 1}
+                isSlowedDown={state.slowdownTimer > 0}
+              />
+              <VisualEffects effects={state.visualEffects} onRemove={handleRemoveEffect} />
+            </div>
+          </>
+        );
+    }
+  }
+
+  return (
+    <div className={`min-h-screen text-white font-sans flex flex-col items-center justify-center p-4 ${isShaking ? 'screen-shake' : ''}`}>
+      <div className="w-full max-w-4xl mx-auto flex flex-col items-center justify-center gap-4">
+        <h1 className="text-5xl md:text-6xl font-bold mb-2 text-center" style={{textShadow: '3px 3px 0 rgba(0,0,0,0.2)'}}>
+            Serpiente Multicolor
+        </h1>
+        {renderContent()}
+      </div>
+    </div>
+  );
+}
+```
+
+## 5. Contenido de `constants.ts`
+
+```typescript
+import { Coordinates, Direction } from './types';
+
+export const GRID_SIZE = 18;
+export const INITIAL_SNAKE: Coordinates[] = [
+  { x: 8, y: 9 },
+  { x: 7, y: 9 },
+  { x: 6, y: 9 },
+];
+export const INITIAL_SPEED = 200; // ms per tick
+export const SPEED_INCREMENT = 5; // ms to decrease per food item
+
+export const POINTS_PER_FOOD = 10;
+export const BONUS_MULTIPLIER = 2;
+export const BONUS_DURATION_MS = 10000; // 10 seconds
+
+export const SLOWDOWN_FACTOR = 1.5; // speed will be multiplied by this
+export const SLOWDOWN_DURATION_MS = 8000; // 8 seconds
+export const DANGER_DURATION_MS = 5000; // 5 seconds
+
+export const TARGET_DANGER_COUNT = 3;
+export const TARGET_BONUS_COUNT = 1;
+export const TARGET_SLOWDOWN_COUNT = 1;
+
+export const HIGH_SCORE_COUNT = 10;
+
+export const SNAKE_COLORS = [
+    'bg-indigo-500',
+    'bg-purple-500',
+    'bg-orange-500',
+    'bg-yellow-400',
+    'bg-teal-400',
+    'bg-cyan-400',
+    'bg-emerald-500',
+];
+
+export const PARTICLE_STYLES: { [key: string]: string } = {
+    food: 'bg-lime-500',
+    danger: 'bg-red-600',
+    bonus: 'bg-amber-400',
+    slowdown: 'bg-sky-400'
+};
+```
+
+## 6. Contenido de `types.ts`
+
+```typescript
+export enum GameState {
+  MainMenu,
+  GetReady,
+  Playing,
+  Paused,
+  EnteringInitials,
+  GameOver,
+}
+
+export enum Direction {
+  Up,
+  Down,
+  Left,
+  Right,
+}
+
+export interface Coordinates {
+  x: number;
+  y: number;
+}
+
+export type ParticleType = 'food' | 'danger' | 'bonus' | 'slowdown';
+
+export interface Particle {
+  id: number;
+  position: Coordinates;
+  type: ParticleType;
+  timer?: number; // Optional: time in milliseconds until particle disappears
+}
+
+export interface HighScore {
+    score: number;
+    date: string;
+    initials: string;
+}
+
+export interface VisualEffect {
+  id: number;
+  type: 'particle-burst' | 'score-text';
+  position: Coordinates;
+  text?: string;
+  color?: string;
+}
+```
+
+## 7. Resumen de Pasos Tomados y Soluciones Intentadas
+
+1.  **Problema Inicial:** Sonidos no se reproducían.
+    *   **Diagnóstico:** `vite` no reconocido (dependencias no instaladas).
+    *   **Solución:** `npm install`, `npm run build`.
+2.  **Problema:** Solo fichas rojas, otras no aparecían.
+    *   **Diagnóstico:** Probabilidades de generación desequilibradas, fichas rojas se acumulaban.
+    *   **Solución:** Ajuste de probabilidades en `App.tsx` y aumento del número inicial de partículas.
+3.  **Problema:** Fichas rojas/amarillas/azules no desaparecían automáticamente.
+    *   **Diagnóstico:** Faltaba lógica de temporizador para estas partículas.
+    *   **Solución:** Añadido `timer` a `Particle` en `types.ts`, `DANGER_DURATION_MS` en `constants.ts`, lógica de temporizador y reposición en `gameReducer` (`TICK` y `DECREMENT_PARTICLE_TIMERS` en `App.tsx`).
+4.  **Problema:** Sonidos MP3 no se reproducían (404 y EncodingError).
+    *   **Diagnóstico:** Rutas incorrectas (`/public/sonido/` en lugar de `/sonido/`) y posible corrupción/incompatibilidad de MP3s.
+    *   **Solución:** Renombrado de archivos MP3 a `bola_verde.mp3` y `game_over.mp3`, movido la carpeta `sonido` a `public/sonido/`, y corregido las rutas en `hooks/useSounds.ts` a `/sonido/`.
+5.  **Problema:** Sonidos MP3 solo sonaban una vez o no sonaban en absoluto (`AudioContext not running`).
+    *   **Diagnóstico:** Política de reproducción automática de navegadores. `AudioContext` se suspendía si no se activaba con un gesto de usuario. La carga de MP3s no esperaba la activación del `AudioContext`.
+    *   **Solución:** Refactorización de `hooks/useSounds.ts` para introducir `initAudio` (que crea/reanuda `AudioContext` y carga MP3s de forma asíncrona) y modificar `playSound` para que dependa de un `AudioContext` ya `running`. Se añadió `initAudio()` a los eventos de interacción del usuario en `App.tsx`.
+
+---
+
+Espero que este informe detallado sea de gran ayuda para diagnosticar y resolver el problema de audio.
+
+El archivo `audio_debug_info.txt` ha sido creado en la raíz de tu proyecto.

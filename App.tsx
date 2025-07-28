@@ -9,7 +9,6 @@ import { PauseScreen } from './components/PauseScreen';
 import { VisualEffects } from './components/VisualEffects';
 import { useGameLoop } from './hooks/useGameLoop';
 import { useSounds } from './hooks/useSounds'; // Import useSounds
-import { GameState, Direction, Coordinates, Particle, HighScore, VisualEffect, ParticleType } from './types';
 import { 
   GRID_SIZE, 
   INITIAL_SNAKE, 

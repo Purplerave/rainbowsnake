@@ -58,12 +58,32 @@ export const useSounds = () => {
     }
   }, []); // No dependency on getAudioContext anymore
 
-  const playSound = useCallback((type: SoundType) => {
+  const playSound = useCallback(async (type: SoundType) => {
     console.log(`playSound called for type: ${type}`);
     const context = audioContextRef.current;
-    if (!context || context.state !== 'running') {
-      console.warn("AudioContext not running. Cannot play sound.");
+    if (!context) {
+      console.warn("No AudioContext available.");
       return;
+    }
+
+    // Ensure context is running before proceeding
+    if (context.state === 'suspended') {
+      try {
+        await context.resume(); // Await the resume
+        console.log("AudioContext resumed successfully within playSound.");
+      } catch (e) {
+        console.error("Error resuming AudioContext in playSound:", e);
+        return; // Don't proceed if resume fails
+      }
+    }
+
+    // Load sounds only once, after the AudioContext is active due to user gesture
+    if (!soundsLoadedRef.current) {
+      console.log("First playSound call, loading MP3s...");
+      // Await these loadSound calls
+      await loadSound('/sonido/bola_verde.mp3', 'eat_mp3');
+      await loadSound('/sonido/game_over.mp3', 'gameover_mp3');
+      soundsLoadedRef.current = true;
     }
 
     if (type === 'eat_mp3' || type === 'gameover_mp3') {
